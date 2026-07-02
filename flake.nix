@@ -28,6 +28,12 @@
         );
     in
     {
+      checks = forEachSupportedSystem (
+        { pkgs }: let
+			system = pkgs.stdenv.hostPlatform.system;
+		in {
+          build-test = self.packages.${system}.default;
+        });
 
       packages = forEachSupportedSystem (
         { pkgs }: {
@@ -36,6 +42,14 @@
             version = version;
             src = ./.;
             __contentAddressed = true;
+            doCheck = true;
+
+            meta = with nixpkgs.lib; {
+              description = "A reproducible minimal varint implementation in C.";
+              homepage = "https://tangled.org/stau.space/varint";
+              license = licenses.mit;
+              platforms = platforms.all;
+            };
 
             outputs = [
               "dev" # headers & static.a
@@ -54,6 +68,12 @@
               ./nob build
               ./nob docs || true
               runHook postBuild
+            '';
+
+            checkPhase = ''
+              runHook preCheck
+              ./nob test
+              runHook postCheckCheck
             '';
 
             installPhase = ''
@@ -99,13 +119,6 @@
               Libs: -L''${libdir} -lvarint
               EOF
             '';
-
-            meta = with nixpkgs.lib; {
-              description = "A reproducible minimal varint implementation in C.";
-              homepage = "https://tangled.org/stau.space/varint";
-              license = licenses.mit;
-              platforms = platforms.all;
-            };
           };
         }
       );
