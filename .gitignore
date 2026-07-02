@@ -1,0 +1,7 @@
+.direnv/
+.build/
+.cache/
+compile_commands.json
+*.tar.gz
+nob
+tags
