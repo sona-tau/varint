@@ -4,9 +4,14 @@ An unsigned varint C library.
 
 Features:
 
-- minimal: only has add, sub, mul and div10 as operations
+- minimal, only has:
+  - arithmetic: `add`, `sub` & `mul`
+  - IO: `show`, `read`
+  - other: `div10`
 - zero dependency: no other libraries were used
 - provides dynamic, static and header-only versions of the library
+
+## Implementation Details
 
 This implementation is based off of: [multiformats/unsigned-varint](https://github.com/multiformats/unsigned-varint)
 
@@ -84,4 +89,7 @@ The `nob` binary will recompile itself automatically if `nob.c` changes.
   - `-Oz -s -DNDEBUG -ffunction-sections -fdata-sections -Wl,--gc-sections -fno-ident -fno-asynchronous-unwind-tables` for size
   - `-O0 -g3 -ggdb3 -glldb -gdwarf-4 -Wall -Wextra -DDEBUG` for debug 
 - add tests for add, sub, mul, div
-- make `print` return a `char*` to a null-terminated string with the number instead. (caller must free)
+- IO:
+  - add `varint_read` (reads from file)
+  - rename `varint_print` to `varint_show` and make it return a `const char*` to a null-terminated string (caller must free)
+- add fuzz testing from libFuzzing
