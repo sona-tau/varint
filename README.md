@@ -33,6 +33,10 @@ Additionally, this Nix flake uses content-addressed derivations. You might have 
 
 - <https://nixos.wiki/wiki/Ca-derivations>
 
+This project uses Kelvin versioning (as opposed to the very popular versioning system: semver). This means that once this project reaches 0K, no new releases will come out.
+
+- <https://wiki.xxiivv.com/site/kelvin_versioning.html>
+
 ## Building
 
 
@@ -65,31 +69,41 @@ Bootstrap once:
 cc nob.c -o nob
 ```
 
+The `./nob` binary is the build tool this project uses.
+
 Then:
 
-```sh
-./nob                 # build static + dynamic (default)
-./nob build-release   # same as above: heavy speed optimizations and no debug info or asserts
-./nob build-tiny      # same as above: heavy size optimizations and no debug info or asserts
-./nob build-debug     # same as above: absolutely no optimizations and lots of debug info
+```txt
+Usage: ./nob [OPTIONS]
 
-./nob test     # run tests
-./nob static   # build .build/libvarint.a
-./nob dynamic  # build .build/libvarint.so
-
-./nob help  # Show usage
+Options:
+  -b, build,            --build               Build: static and dynamic libraries (same as debug)
+      release,          --release             Build: speed opts & no debug info & no assertions
+      tiny,             --tiny                Build: size opts & no debug & no assertions
+      debug,            --debug               Build: debug info & assertions
+      static,           --static              Build: .build/libvarint.a
+      dynamic,          --dynamic             Build: .build/libvarint.so
+  -t, test,             --test                Test: tests/test_*.c
+      valgrind,         --valgrind            Valgrind on tests: no sanitizers
+      strace,           --strace              STrace on tests: no sanitizers
+      cppcheck,         --cppcheck            cppcheck static analysis
+      ctags,            --ctags               Generate tags file for editor navigation
+      fmt,              --fmt                 clang-format in-place
+      fmt-check,        --fmt-check           Check formatting (for CI)
+      compile-commands, --compile-commands    Generate compile_commands.json via bear
+      docs,             --docs                Generate HTML & man docs in .build/docs/
+      pack,             --pack [ver] [pfx]    Pack library as tar.gz (semver optional)
+      clean,            --clean               Remove .build/
+  -h, help,             --help                Print help
 ```
 
-The `nob` binary will recompile itself automatically if `nob.c` changes.
+The `./nob` binary will recompile itself automatically if `nob.c` changes.
 
 # TODO
 
-- output binaries for:
-  - `-Ofast -s -DNDEBUG -march=native -flto` for speed
-  - `-Oz -s -DNDEBUG -ffunction-sections -fdata-sections -Wl,--gc-sections -fno-ident -fno-asynchronous-unwind-tables` for size
-  - `-O0 -g3 -ggdb3 -glldb -gdwarf-4 -Wall -Wextra -DDEBUG` for debug 
 - add tests for add, sub, mul, div
 - IO:
   - add `varint_read` (reads from file)
   - rename `varint_print` to `varint_show` and make it return a `const char*` to a null-terminated string (caller must free)
 - add fuzz testing from libFuzzing
+- change semver code in nob.c to kelvin versioning
