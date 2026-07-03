@@ -266,17 +266,17 @@ static int cmd_build(BuildKind kind) {
   return EXIT_SUCCESS;
 }
 
-static bool cmd_test(void) {
+static int cmd_test(void) {
   if (!nob_mkdir_if_not_exists(BUILD_DIR "/tests"))
-    return false;
+    return EXIT_FAILURE;
 
   Nob_File_Paths srcs = {0};
   if (!collect_files(SRC_DIR, is_c_file, &srcs))
-    return false;
+    return EXIT_FAILURE;
 
   Nob_File_Paths test_files = {0};
   if (!collect_files(TEST_DIR, is_test_c_file, &test_files))
-    return false;
+    return EXIT_FAILURE;
 
   int failed = 0;
   for (size_t i = 0; i < test_files.count; i++) {
@@ -314,9 +314,9 @@ static bool cmd_test(void) {
 
   if (failed > 0) {
     nob_log(NOB_ERROR, "%d test(s) failed", failed);
-    return false;
+    return EXIT_FAILURE;
   }
-  return true;
+  return EXIT_SUCCESS;
 }
 
 static bool cmd_valgrind(void) {
