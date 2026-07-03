@@ -102,8 +102,5 @@ The `./nob` binary will recompile itself automatically if `nob.c` changes.
 # TODO
 
 - add tests for `add`, `sub`, `mul`, `div10`
-- IO:
-  - add `varint_read` (reads from file)
-  - rename `varint_print` to `varint_show` and make it return a `const char*` to a null-terminated string (caller must free)
 - add fuzz testing from libFuzzing
 - change semver code in nob.c to kelvin versioning
