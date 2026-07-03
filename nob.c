@@ -101,30 +101,17 @@ static const char *git_version(void) {
 /* --- semver --- */
 
 /* Validates MAJOR.MINOR.PATCH[-prerelease][+build] */
-static bool is_valid_semver(const char *s) {
-  if (!s || !*s || !isdigit((unsigned char)*s))
-    return false;
-  int dots = 0;
-  bool in_digits = false;
-  for (; *s; s++) {
-    if (isdigit((unsigned char)*s)) {
-      in_digits = true;
-    } else if (*s == '.' && dots < 2) {
-      if (!in_digits)
-        return false;
-      dots++;
-      in_digits = false;
-    } else if ((*s == '-' || *s == '+') && dots == 2 && in_digits) {
-      s++;
-      while (*s && (isalnum((unsigned char)*s) || *s == '.' || *s == '-' ||
-                    *s == '+'))
-        s++;
-      return *s == '\0';
+static bool is_valid_kelvin(const char *s) {
+  size_t len = strlen(s);
+  for (size_t i = 0; i < len; ++i) {
+    if (s[i] >= '0' && s[i] <= '9') {
+      continue;
+    } else if (s[i] == 'K' && i == len - 1) {
+      return true;
     } else {
       return false;
     }
   }
-  return dots == 2 && in_digits;
 }
 
 /* --- commands --- */
@@ -425,13 +412,12 @@ static int cmd_pack(const char *version, const char *prefix, BuildKind kind) {
 
   char out[512];
   if (version && *version) {
-    /*
-    if (!is_valid_semver(version)) {
-      nob_log(NOB_ERROR, "error: '%s' is not valid semver (e.g. 1.2.3)",
+    if (!is_valid_kelvin(version)) {
+      nob_log(NOB_ERROR,
+              "error: '%s' is not a valid Kelvin version (e.g., 123K)",
               version);
-      return false;
+      return EXIT_FAILURE;
     }
-    */
     snprintf(out, sizeof(out), NAME "-%s.tar.gz", version);
   } else {
     snprintf(out, sizeof(out), NAME ".tar.gz");
@@ -690,7 +676,7 @@ int main(int argc, char **argv) {
   case Pack:
     const char *ver = argc > 0 ? nob_shift(argv, argc) : "";
     const char *pfx = argc > 0 ? nob_shift(argv, argc) : "";
-    return cmd_pack(ver, pfx, DebugBuild) ? 0 : 1;
+    return cmd_pack(ver, pfx, DebugBuild);
   case Clean:
     return cmd_clean();
   }
