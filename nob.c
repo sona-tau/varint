@@ -18,23 +18,22 @@
 #define LIB_DIR "lib"
 #define TEST_DIR "tests"
 
-#define SPEED_FLAGS "-Ofast", "-s", "-DNDEBUG", "-march=native", "-flto"
-
-#define SIZE_FLAGS                                                             \
-  "-Oz", "-s", "-DNDEBUG", "-ffunction-sections", "-fdata-sections",           \
-      "-Wl,--gc-sections", "-fno-ident", "-fno-asynchronous-unwind-tables"
-
-#define DEBUG_FLAGS                                                            \
-  "-O0", "-g3", "-ggdb3", "-glldb", "-gdwarf-4", "-Wall", "-Wextra", "-DDEBUG"
-
 #define WARN_FLAGS                                                             \
   "-Wall", "-Wextra", "-Wfloat-equal", "-Wundef", "-Wshadow",                  \
       "-Wpointer-arith", "-Wwrite-strings", "-Wswitch-default",                \
       "-Wconversion", "-Wunreachable-code", "-pedantic"
 
+#define RELEASE_FLAGS "-Ofast", "-s", "-DNDEBUG", "-march=native", "-flto"
+
+#define SIZE_FLAGS                                                             \
+  "-Oz", "-s", "-DNDEBUG", "-ffunction-sections", "-fdata-sections",           \
+      "-Wl,--gc-sections", "-fno-ident", "-fno-asynchronous-unwind-tables"
+
+#define DEBUG_FLAGS "-O", "-g3", "-gdwarf-4", "-DDEBUG", WARN_FLAGS
+
 /* to expose POSIX/GNU APIs: add "-D_POSIX_C_SOURCE=200809L" or "-D_GNU_SOURCE"
  */
-#define BASE_FLAGS "-std=" STD, WARN_FLAGS, "-I" INC_DIR
+#define BASE_FLAGS "-std=" STD, "-I" INC_DIR
 
 #define SAN_FLAGS "-fsanitize=address,undefined"
 #define LNK_FLAGS "-L" LIB_DIR "/static", "-L" LIB_DIR "/dynamic", "-lm"
@@ -130,10 +129,17 @@ static bool is_valid_semver(const char *s) {
 
 /* --- commands --- */
 
-static bool build_objects(Nob_File_Paths *srcs, Nob_File_Paths *objs) {
-  if (!nob_mkdir_if_not_exists(BUILD_DIR))
-    return false;
-  for (size_t i = 0; i < srcs->count; i++) {
+typedef enum { DebugBuild, ReleaseBuild, TinyBuild } BuildKind;
+
+static int build_objects(Nob_File_Paths *srcs, Nob_File_Paths *objs,
+                         BuildKind kind) {
+  if (!nob_mkdir_if_not_exists(BUILD_DIR)) {
+    nob_log(NOB_ERROR, "could not create build director: %s\n",
+            strerror(errno));
+    return EXIT_FAILURE;
+  }
+
+  for (size_t i = 0; i < srcs->count; ++i) {
     const char *src = srcs->items[i];
     const char *obj = nob_temp_sprintf(BUILD_DIR "/%s.o", nob_path_name(src));
     /* strip ".c", add ".o" */
@@ -143,56 +149,122 @@ static bool build_objects(Nob_File_Paths *srcs, Nob_File_Paths *objs) {
     o[len - 1] = 'o';
 
     Nob_Cmd cmd = {0};
-    nob_cmd_append(&cmd, CC, BASE_FLAGS, "-O2", "-DNDEBUG", "-fPIC",
+    nob_cmd_append(&cmd, CC, BASE_FLAGS, "-fPIC",
                    nob_temp_sprintf("-DVERSION=\"%s\"", git_version()), "-c",
                    src, "-o", o);
+    switch (kind) {
+    case DebugBuild:
+      nob_cmd_append(&cmd, DEBUG_FLAGS);
+      break;
+    case ReleaseBuild:
+      nob_cmd_append(&cmd, RELEASE_FLAGS);
+      break;
+    case TinyBuild:
+      nob_cmd_append(&cmd, SIZE_FLAGS);
+      break;
+    }
+
     if (!nob_cmd_run(&cmd))
-      return false;
+      return EXIT_FAILURE;
+
     nob_da_append(objs, o);
   }
-  return true;
+
+  return EXIT_SUCCESS;
 }
 
-static bool cmd_static(void) {
+static int cmd_static(BuildKind kind) {
   Nob_File_Paths srcs = {0};
   if (!collect_files(SRC_DIR, is_c_file, &srcs))
-    return false;
+    return EXIT_FAILURE;
 
   Nob_File_Paths objs = {0};
-  if (!build_objects(&srcs, &objs))
-    return false;
+  if (build_objects(&srcs, &objs, kind) != EXIT_SUCCESS)
+    return EXIT_FAILURE;
 
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "ar", "rcs", BUILD_DIR "/lib" NAME ".a");
+  nob_cmd_append(&cmd, "gcc-ar", "rcs");
+  switch (kind) {
+  case DebugBuild:
+    nob_cmd_append(&cmd, BUILD_DIR "/lib" NAME ".a");
+    break;
+  case ReleaseBuild:
+    nob_cmd_append(&cmd, BUILD_DIR "/lib" NAME "-release.a");
+    break;
+  case TinyBuild:
+    nob_cmd_append(&cmd, BUILD_DIR "/lib" NAME "-tiny.a");
+    break;
+  }
+
   nob_da_append_many(&cmd, objs.items, objs.count);
   if (!nob_cmd_run(&cmd))
-    return false;
+    return EXIT_FAILURE;
 
-  nob_log(NOB_INFO, "Built: " BUILD_DIR "/lib" NAME ".a");
-  return true;
+  switch (kind) {
+  case DebugBuild:
+    nob_log(NOB_INFO, "Built: " BUILD_DIR "/lib" NAME ".a");
+    break;
+  case ReleaseBuild:
+    nob_log(NOB_INFO, "Built: " BUILD_DIR "/lib" NAME "-release.a");
+    break;
+  case TinyBuild:
+    nob_log(NOB_INFO, "Built: " BUILD_DIR "/lib" NAME "-tiny.a");
+    break;
+  }
+
+  return EXIT_SUCCESS;
 }
 
-static bool cmd_dynamic(void) {
+static int cmd_dynamic(BuildKind kind) {
   Nob_File_Paths srcs = {0};
   if (!collect_files(SRC_DIR, is_c_file, &srcs))
-    return false;
+    return EXIT_FAILURE;
 
   Nob_File_Paths objs = {0};
-  if (!build_objects(&srcs, &objs))
-    return false;
+  if (build_objects(&srcs, &objs, kind) != EXIT_SUCCESS)
+    return EXIT_FAILURE;
 
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, CC, "-shared", "-o", BUILD_DIR "/lib" NAME ".so");
-  nob_da_append_many(&cmd, objs.items, objs.count);
-  nob_cmd_append(&cmd, LNK_FLAGS);
-  if (!nob_cmd_run(&cmd))
-    return false;
 
-  nob_log(NOB_INFO, "Built: " BUILD_DIR "/lib" NAME ".so");
-  return true;
+  nob_cmd_append(&cmd, CC, LNK_FLAGS, "-shared");
+  switch (kind) {
+  case DebugBuild:
+    nob_cmd_append(&cmd, DEBUG_FLAGS, "-o", BUILD_DIR "/lib" NAME ".so");
+    break;
+  case ReleaseBuild:
+    nob_cmd_append(&cmd, RELEASE_FLAGS, "-o",
+                   BUILD_DIR "/lib" NAME "-release.so");
+    break;
+  case TinyBuild:
+    nob_cmd_append(&cmd, SIZE_FLAGS, "-o", BUILD_DIR "/lib" NAME "-tiny.so");
+    break;
+  }
+  nob_da_append_many(&cmd, objs.items, objs.count);
+  if (!nob_cmd_run(&cmd))
+    return EXIT_FAILURE;
+
+  switch (kind) {
+  case DebugBuild:
+    nob_log(NOB_INFO, "Built: " BUILD_DIR "/lib" NAME ".so");
+    break;
+  case ReleaseBuild:
+    nob_log(NOB_INFO, "Built: " BUILD_DIR "/lib" NAME "-release.so");
+    break;
+  case TinyBuild:
+    nob_log(NOB_INFO, "Built: " BUILD_DIR "/lib" NAME "-tiny.so");
+    break;
+  }
+
+  return EXIT_SUCCESS;
 }
 
-static bool cmd_build(void) { return cmd_static() && cmd_dynamic(); }
+static int cmd_build(BuildKind kind) {
+  if (cmd_static(kind) != EXIT_SUCCESS)
+    return EXIT_FAILURE;
+  if (cmd_dynamic(kind) != EXIT_SUCCESS)
+    return EXIT_FAILURE;
+  return EXIT_SUCCESS;
+}
 
 static bool cmd_test(void) {
   if (!nob_mkdir_if_not_exists(BUILD_DIR "/tests"))
@@ -345,10 +417,10 @@ static bool cmd_docs(void) {
   return true;
 }
 
-static bool cmd_pack(const char *version, const char *prefix) {
-  if (!cmd_static())
+static bool cmd_pack(const char *version, const char *prefix, BuildKind kind) {
+  if (!cmd_static(kind))
     return false;
-  if (!cmd_dynamic())
+  if (!cmd_dynamic(kind))
     return false;
 
   char out[512];
@@ -481,32 +553,92 @@ static bool cmd_ctags(void) {
 
 /* --- usage --- */
 
+#define bold_text(str) "\033[1m" str "\033[22m"
+#define underline_text(str) "\033[4m" str "\033[24m"
+#define bold_underline_text(str) "\033[1m\033[4m" str "\033[24m\033[22m"
+
 static void usage(const char *program) {
-  fprintf(stderr, "Usage: %s [command]\n", program);
+  // clang-format off
+  fprintf(stderr, "Build tool for " NAME "\n");
   fprintf(stderr, "\n");
-  fprintf(stderr, "Commands:\n");
-  fprintf(stderr,
-          "  build            Build static and dynamic libraries (default)\n");
-  fprintf(stderr, "  static           Build " BUILD_DIR "/lib" NAME ".a\n");
-  fprintf(stderr, "  dynamic          Build " BUILD_DIR "/lib" NAME ".so\n");
-  fprintf(stderr, "  test             Compile and run all tests/test_*.c\n");
-  fprintf(stderr, "  valgrind         Per-test Valgrind run (no sanitizers)\n");
-  fprintf(stderr, "  strace           Per-test strace (no sanitizers)\n");
-  fprintf(stderr, "  cppcheck         cppcheck static analysis\n");
-  fprintf(stderr,
-          "  ctags            Generate tags file for editor navigation\n");
-  fprintf(stderr, "  fmt              clang-format in-place\n");
-  fprintf(stderr, "  fmt-check        Check formatting (for CI)\n");
-  fprintf(stderr,
-          "  compile-commands Generate compile_commands.json via bear\n");
-  fprintf(stderr, "  docs             Generate HTML docs in " BUILD_DIR
-                  "/docs/html/\n");
-  fprintf(stderr,
-          "  pack [ver] [pfx] Pack library as tar.gz (semver optional)\n");
-  fprintf(stderr, "  clean            Remove " BUILD_DIR "/\n");
+  fprintf(stderr, bold_underline_text("Usage:") " " bold_text("%s") " [OPTIONS]\n", program);
+  fprintf(stderr, "\n");
+  fprintf(stderr, bold_underline_text("Options:") "\n");
+  fprintf(stderr, "  "bold_text("-b")", "bold_text("build")",            "bold_text("--build")"               Build: static and dynamic libraries " "(same as debug)\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("release")",          "bold_text("--release")"             Build: speed opts & no debug info & no " "assertions\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("tiny")",             "bold_text("--tiny")"                Build: size opts & no debug & no assertions\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("debug")",            "bold_text("--debug")"               Build: debug info & assertions\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("static")",           "bold_text("--static")"              Build: " BUILD_DIR "/lib" NAME ".a\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("dynamic")",          "bold_text("--dynamic")"             Build: " BUILD_DIR "/lib" NAME ".so\n");
+  fprintf(stderr, "  "bold_text("-t")", "bold_text("test")",             "bold_text("--test")"                Test: tests/test_*.c\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("valgrind")",         "bold_text("--valgrind")"            Valgrind on tests: no sanitizers\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("strace")",           "bold_text("--strace")"              STrace on tests: no sanitizers\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("cppcheck")",         "bold_text("--cppcheck")"            cppcheck static analysis\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("ctags")",            "bold_text("--ctags")"               Generate tags file for editor navigation\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("fmt")",              "bold_text("--fmt")"                 clang-format in-place\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("fmt-check")",        "bold_text("--fmt-check")"           Check formatting (for CI)\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("compile-commands")", "bold_text("--compile-commands")"    Generate compile_commands.json via bear\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("docs")",             "bold_text("--docs")"                Generate HTML & man docs in " BUILD_DIR "/docs/\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("pack")",             "bold_text("--pack")" [ver] [pfx]    Pack library as tar.gz (semver optional)\n");
+  fprintf(stderr, "  "          "  " "  "bold_text("clean")",            "bold_text("--clean")"               Remove " BUILD_DIR "/\n");
+  fprintf(stderr, "  "bold_text("-h")", "bold_text("help")",             "bold_text("--help")"                Print help\n");
+  // clang-format on
 }
 
 /* --- main --- */
+
+typedef enum {
+  Unknown,
+  Help,
+  Build,
+  Release,
+  Tiny,
+  Debug,
+  Static,
+  Dynamic,
+  Test,
+  Valgrind,
+  STrace,
+  CPPCheck,
+  CTags,
+  Format,
+  FormatCheck,
+  CompileCommands,
+  Documentation,
+  Pack,
+  Clean
+} Cmd;
+
+#define test_flag_sl(_cmd, _short, _flag)                                      \
+  (strcmp((_cmd), "-" _short) == 0 || strcmp((_cmd), _short) == 0 ||           \
+   strcmp((_cmd), "--" _flag) == 0 || strcmp((_cmd), (_flag)) == 0)
+
+#define test_flag_l(_cmd, _flag)                                               \
+  (strcmp((_cmd), "--" _flag) == 0 || strcmp((_cmd), _flag) == 0)
+
+Cmd parse_cmd(const char *cmd) {
+  // clang-format off
+  return test_flag_sl(cmd, "h", "help") ? Help
+    : test_flag_sl(cmd, "b", "build") ? Build
+    : test_flag_l(cmd, "release") ? Release
+    : test_flag_l(cmd, "tiny") ? Tiny
+    : test_flag_l(cmd, "debug") ? Debug
+    : test_flag_l(cmd, "static") ? Static
+    : test_flag_l(cmd, "dynamic") ? Dynamic
+    : test_flag_sl(cmd, "t", "test") ? Test
+    : test_flag_l(cmd, "valgrind") ? Valgrind
+    : test_flag_l(cmd, "strace") ? STrace
+    : test_flag_l(cmd, "cpp-check") ? CPPCheck
+    : test_flag_l(cmd, "ctags") ? CTags
+    : test_flag_l(cmd, "fmt") ? Format
+    : test_flag_l(cmd, "fmt-check") ? FormatCheck
+    : test_flag_l(cmd, "compile-commands") ? CompileCommands
+    : test_flag_l(cmd, "docs") ? Documentation
+    : test_flag_l(cmd, "pack") ? Pack
+    : test_flag_l(cmd, "clean") ? Clean
+    : Unknown;
+  // clang-format on
+}
 
 int main(int argc, char **argv) {
   NOB_GO_REBUILD_URSELF(argc, argv);
@@ -514,43 +646,50 @@ int main(int argc, char **argv) {
   const char *program = nob_shift(argv, argc);
   const char *cmd = argc > 0 ? nob_shift(argv, argc) : "build";
 
-  if (strcmp(cmd, "-h") == 0 || strcmp(cmd, "--help") == 0 ||
-      strcmp(cmd, "help") == 0) {
-    usage(program);
-    return 0;
-  } else if (strcmp(cmd, "build") == 0) {
-    return cmd_build() ? 0 : 1;
-  } else if (strcmp(cmd, "static") == 0) {
-    return cmd_static() ? 0 : 1;
-  } else if (strcmp(cmd, "dynamic") == 0) {
-    return cmd_dynamic() ? 0 : 1;
-  } else if (strcmp(cmd, "test") == 0) {
-    return cmd_test() ? 0 : 1;
-  } else if (strcmp(cmd, "valgrind") == 0) {
-    return cmd_valgrind() ? 0 : 1;
-  } else if (strcmp(cmd, "strace") == 0) {
-    return cmd_strace() ? 0 : 1;
-  } else if (strcmp(cmd, "cppcheck") == 0) {
-    return cmd_cppcheck() ? 0 : 1;
-  } else if (strcmp(cmd, "ctags") == 0) {
-    return cmd_ctags() ? 0 : 1;
-  } else if (strcmp(cmd, "fmt") == 0) {
-    return cmd_fmt(false) ? 0 : 1;
-  } else if (strcmp(cmd, "fmt-check") == 0) {
-    return cmd_fmt(true) ? 0 : 1;
-  } else if (strcmp(cmd, "compile-commands") == 0) {
-    return cmd_compile_commands() ? 0 : 1;
-  } else if (strcmp(cmd, "docs") == 0) {
-    return cmd_docs() ? 0 : 1;
-  } else if (strcmp(cmd, "pack") == 0) {
-    const char *ver = argc > 0 ? nob_shift(argv, argc) : "";
-    const char *pfx = argc > 0 ? nob_shift(argv, argc) : "";
-    return cmd_pack(ver, pfx) ? 0 : 1;
-  } else if (strcmp(cmd, "clean") == 0) {
-    return cmd_clean() ? 0 : 1;
-  } else {
+  switch (parse_cmd(cmd)) {
+  case Unknown:
     nob_log(NOB_ERROR, "unknown command: %s", cmd);
     usage(program);
-    return 1;
+    return EXIT_FAILURE;
+  case Help:
+    usage(program);
+    return EXIT_SUCCESS;
+  case Build:
+    nob_log(NOB_INFO, "Building debug");
+    return cmd_build(DebugBuild);
+  case Release:
+    return cmd_build(ReleaseBuild);
+  case Tiny:
+    return cmd_build(TinyBuild);
+  case Debug:
+    return cmd_build(DebugBuild);
+  case Static:
+    return cmd_static(DebugBuild);
+  case Dynamic:
+    return cmd_dynamic(DebugBuild);
+  case Test:
+    return cmd_test();
+  case Valgrind:
+    return cmd_valgrind();
+  case STrace:
+    return cmd_strace();
+  case CPPCheck:
+    return cmd_cppcheck();
+  case CTags:
+    return cmd_ctags();
+  case Format:
+    return cmd_fmt(false);
+  case FormatCheck:
+    return cmd_fmt(true);
+  case CompileCommands:
+    return cmd_compile_commands();
+  case Documentation:
+    return cmd_docs();
+  case Pack:
+    const char *ver = argc > 0 ? nob_shift(argv, argc) : "";
+    const char *pfx = argc > 0 ? nob_shift(argv, argc) : "";
+    return cmd_pack(ver, pfx, DebugBuild) ? 0 : 1;
+  case Clean:
+    return cmd_clean();
   }
 }
