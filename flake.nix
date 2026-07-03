@@ -8,7 +8,7 @@
   outputs =
     inputs@{ self, nixpkgs }:
     let
-      version = "373K";
+      version = "272K";
       # The systems supported for this flake
       supportedSystems = [
         "x86_64-linux" # 64-bit Intel/AMD Linux
@@ -21,19 +21,19 @@
       forEachSupportedSystem =
         f:
         inputs.nixpkgs.lib.genAttrs supportedSystems (
-          system:
-          f {
-            pkgs = import inputs.nixpkgs { inherit system; };
-          }
+          system: f { pkgs = import inputs.nixpkgs { inherit system; }; }
         );
     in
     {
       checks = forEachSupportedSystem (
-        { pkgs }: let
-			system = pkgs.stdenv.hostPlatform.system;
-		in {
+        { pkgs }:
+        let
+          system = pkgs.stdenv.hostPlatform.system;
+        in
+        {
           build-test = self.packages.${system}.default;
-        });
+        }
+      );
 
       packages = forEachSupportedSystem (
         { pkgs }: {

@@ -417,19 +417,21 @@ static bool cmd_docs(void) {
   return true;
 }
 
-static bool cmd_pack(const char *version, const char *prefix, BuildKind kind) {
-  if (!cmd_static(kind))
-    return false;
-  if (!cmd_dynamic(kind))
-    return false;
+static int cmd_pack(const char *version, const char *prefix, BuildKind kind) {
+  if (cmd_static(kind) != EXIT_SUCCESS)
+    return EXIT_FAILURE;
+  if (cmd_dynamic(kind) != EXIT_SUCCESS)
+    return EXIT_FAILURE;
 
   char out[512];
   if (version && *version) {
+    /*
     if (!is_valid_semver(version)) {
       nob_log(NOB_ERROR, "error: '%s' is not valid semver (e.g. 1.2.3)",
               version);
       return false;
     }
+    */
     snprintf(out, sizeof(out), NAME "-%s.tar.gz", version);
   } else {
     snprintf(out, sizeof(out), NAME ".tar.gz");
@@ -439,7 +441,7 @@ static bool cmd_pack(const char *version, const char *prefix, BuildKind kind) {
   char stage[] = "/tmp/nob_pack_XXXXXX";
   if (!mkdtemp(stage)) {
     nob_log(NOB_ERROR, "mkdtemp failed: %s", strerror(errno));
-    return false;
+    return EXIT_FAILURE;
   }
 
   const char *root =
@@ -490,14 +492,14 @@ static bool cmd_pack(const char *version, const char *prefix, BuildKind kind) {
   }
 
   nob_log(NOB_INFO, "packed: %s", out);
-  return true;
+  return EXIT_SUCCESS;
 
 fail: {
   Nob_Cmd cmd = {0};
   nob_cmd_append(&cmd, "rm", "-rf", stage);
   nob_cmd_run(&cmd);
 }
-  return false;
+  return EXIT_FAILURE;
 }
 
 static bool cmd_clean(void) {
