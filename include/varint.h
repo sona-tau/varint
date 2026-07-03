@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #ifdef __cplusplus
@@ -133,7 +134,6 @@ varint varint_subn(varint l, varint r);
  * \return the result of multiplying `l` and `r` (`l * r`)
  */
 varint varint_mul(varint l, size_t lenl, varint r, size_t lenr);
-
 varint varint_muln(varint l, varint r);
 
 /*! Divide a varint by 10.
@@ -164,7 +164,7 @@ int varint_cmp(varint a, varint b);
  *  \param fd the file descriptor to write to
  *  \param a a well-formed varint
  */
-void varint_write(int fd, varint a);
+void varint_write(FILE *f, varint a);
 
 /*! Reads a varint from a file descriptor.
  * Reads from `fd` assuming `fd` is a C string (null-terminated) representing
@@ -172,7 +172,7 @@ void varint_write(int fd, varint a);
  * \param fd the file descriptor to read from
  * \return the varint that was read
  */
-varint varint_read(int fd);
+varint varint_read(FILE *f);
 
 /*! Prints each byte in hexadecimal to stdin.
  */

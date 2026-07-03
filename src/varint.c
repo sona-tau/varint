@@ -33,10 +33,37 @@ varint varint_new(uint64_t a) {
   return ret;
 }
 
-varint varint_add(varint a, varint b) {
+size_t varint_into(varint *out, size_t nbytes, uint64_t a) {
+  assert(out != NULL);
+  uint8_t tmp[10];
+  size_t len = 0;
+
+  do {
+    tmp[len++] = (uint8_t)(a & 0x7F);
+    a >>= 7;
+  } while (a);
+
+  if (len > nbytes) {
+    fprintf(stderr,
+            "%s:%d: error: varint does not fit in provided space, expected %zu "
+            "<= %zu\n",
+            __FILE__, __LINE__, len, nbytes);
+    return 0;
+  } else {
+    for (size_t i = 0; i < len; ++i)
+      (*out)[i] = tmp[i] | (uint8_t)TOP_BIT;
+
+    (*out)[len - 1] &= (uint8_t)BOT_MASK;
+    return len;
+  }
+}
+
+varint varint_add(varint a, size_t lena, varint b, size_t lenb) {
+  assert(varint_length(a) == lena &&
+         "`lenl` must be exactly equal to the length of `l`");
+  assert(varint_length(b) == lenb &&
+         "`lenr` must be exactly equal to the length of `r`");
   uint8_t carry = 0;
-  size_t lena = varint_length(a);
-  size_t lenb = varint_length(b);
   size_t n = lena > lenb ? lena : lenb;
   size_t len = 0;
   varint ret = calloc(1, n + 1);
@@ -73,9 +100,16 @@ varint varint_add(varint a, varint b) {
   return ret;
 }
 
-varint varint_sub(varint a, varint b) {
-  size_t na = varint_length(a);
-  size_t nb = varint_length(b);
+varint varint_addn(varint a, varint b) {
+  return varint_add(a, varint_length(a), b, varint_length(b));
+}
+
+varint varint_sub(varint a, size_t na, varint b, size_t nb) {
+  assert(varint_length(a) == na &&
+         "`lenl` must be exactly equal to the length of `l`");
+  assert(varint_length(b) == nb &&
+         "`lenr` must be exactly equal to the length of `r`");
+  assert(varint_gt(a, b) && "`l >= r` in order for subtraction to be defined");
   size_t n = na;
 
   varint r = calloc(n, 1);
@@ -109,10 +143,19 @@ varint varint_sub(varint a, varint b) {
   return r;
 }
 
-varint varint_mul(varint a, varint b) {
-  size_t na = varint_length(a);
-  size_t nb = varint_length(b);
+varint varint_subn(varint a, varint b) {
+  return varint_sub(a, varint_length(a), b, varint_length(b));
+}
 
+varint varint_muln(varint a, varint b) {
+  return varint_mul(a, varint_length(a), b, varint_length(b));
+}
+
+varint varint_mul(varint a, size_t na, varint b, size_t nb) {
+  assert(varint_length(a) == na &&
+         "`lenl` must be exactly equal to the length of `l`");
+  assert(varint_length(b) == nb &&
+         "`lenr` must be exactly equal to the length of `r`");
   size_t n = na + nb;
   uint16_t *tmp = calloc(n, sizeof(uint16_t));
 
@@ -160,7 +203,7 @@ void varint_print_debug(varint a) {
   }
 }
 
-void varint_print(varint a) {
+void varint_write(FILE *fd, varint a) {
   size_t n = varint_length(a);
   varint q = calloc(1, n);
   char *str = calloc(1, n);
@@ -180,8 +223,40 @@ void varint_print(varint a) {
   }
 
   free(q);
-  printf("%s", str);
+  fprintf(fd, "%s", str);
   free(str);
+}
+
+varint varint_read(FILE *fd) {
+  varint ret = varint_new(0);
+  size_t retn = varint_length(ret);
+
+  uint8_t v10buf[1] = {0};
+  varint v10 = v10buf;
+  size_t v10n = varint_into(&v10, 1, 10);
+
+  uint8_t vvalbuf[1] = {0};
+  varint vval = vvalbuf;
+  size_t vvaln = varint_into(&vval, 1, 0);
+
+  for (int c = 0; (c = fgetc(fd)) != EOF;) {
+    if (c >= '0' && c <= '9') {
+      uint8_t value = (uint8_t)c - '0';
+      vvaln = varint_into(&vval, 1, (uint64_t)value);
+
+      vint mul10 = varint_mul(ret, retn, v10, v10n);
+      size_t mul10n = varint_length(mul10);
+
+      varint m10av = varint_add(mul10, mul10n, vval, vvaln);
+      free(ret);
+      ret = m10av;
+      retn = varint_length(ret);
+    } else {
+      break;
+    }
+  }
+
+  return ret;
 }
 
 size_t varint_length(varint a) {
