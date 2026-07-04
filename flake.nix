@@ -140,6 +140,7 @@
                 doxygen
                 clang-tools # provides clang-format and clangd
                 nixfmt
+                radicle-node
               ]
               ++ lib.optionals stdenv.isLinux [ valgrind ];
 

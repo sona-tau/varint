@@ -17,63 +17,25 @@ This implementation is based off of: [multiformats/unsigned-varint](https://gith
 
 ---
 
-This repository uses Nix for reproducibility. If you do not use Nix, you will have to manually install a C compiler (this project uses `gcc`). For development, you will also need:
-
-- bear
-- gdb
-- universal-ctags
-- cppcheck
-- doxygen
-- clang-tools
-- valgrind
-
-Additionally, this Nix flake uses content-addressed derivations. You might have to enable these in your nix config in order to build:
-
-- <https://nixos.wiki/wiki/Ca-derivations>
-
-You should still be able to open the development environment by removing the `__contentAddresssed = true;` line in [`./flake.nix`](flake.nix).
-
----
-
 This project uses Kelvin versioning (as opposed to the very popular versioning system: semver). This means that once this project reaches 0K, no new releases will come out.
 
 - <https://wiki.xxiivv.com/site/kelvin_versioning.html>
 
 ## Building
 
-
-To compile the whole project, run:
-
-```sh
-# shared objects
-nix develop .#default.out
-
-# static library and header
-nix develop .#default.dev
-
-# documentation (HTML and man)
-nix develop .#default.doc
-```
-
-## Developing
-
-First, get inside the development environment (dev-env) by running:
+To compile the project, first compile the build tool:
 
 ``` sh
-nix develop
-```
-
-### Inside dev-env
-
-Bootstrap once:
-
-```sh
 cc nob.c -o nob
 ```
 
-The `./nob` binary is the build tool this project uses.
+Then use the build tool to compile the project:
 
-Then:
+``` sh
+./nob build
+```
+
+The `./nob` binary is the build tool this project uses.
 
 ```txt
 Usage: ./nob [OPTIONS]
@@ -101,12 +63,49 @@ Options:
 
 The `./nob` binary will recompile itself automatically if `nob.c` changes.
 
+
+### Developing
+
+This repository uses Nix for reproducibility. If you do not use Nix, you will have to manually install a C compiler (this project uses `gcc`). For development, you will also need:
+
+- bear
+- gdb
+- universal-ctags
+- cppcheck
+- doxygen
+- clang-tools
+- valgrind
+
+To enter the development environment, run:
+
+``` sh
+nix develop
+```
+
+```sh
+# shared objects
+nix build .#default.out
+
+# static library and header
+nix build .#default.dev
+
+# documentation (HTML and man)
+nix build .#default.doc
+```
+
+Additionally, this Nix flake uses content-addressed derivations. You might have to enable these in your nix config in order to build:
+
+- <https://nixos.wiki/wiki/Ca-derivations>
+
+You should still be able to open the development environment by removing the `__contentAddresssed = true;` line in [`./flake.nix`](flake.nix).
+
 # Elsewhere
 
 This project is hosted on [tangled.org](https://tangled.org/) and [github.com](https://tangled.org/)
 
 - tangled: <https://tangled.org/stau.space/varint>
 - GitHub: <https://github.com/sona-tau/varint>
+- Radicle: `rad:z36o1kRdhCBtrnrtBDK1hfRrLMfaj`
 
 This project also provides the following feeds:
 
@@ -124,7 +123,6 @@ This project also provides the following feeds:
 # TODO
 
 - add fuzz testing from libFuzzing
-- publish on radicle
 - nob should:
 ``` txt
 ./nob build {release, tiny, debug, static, dynamic} -m MACHINE
