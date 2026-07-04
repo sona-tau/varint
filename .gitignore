@@ -1,9 +1,0 @@
-.direnv/
-.build/
-.cache/
-compile_commands.json
-*.tar.gz
-nob
-nob.old
-tags
-result*
