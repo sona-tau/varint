@@ -4,11 +4,8 @@ An unsigned varint C library.
 
 Features:
 
-- minimal, only has:
-  - arithmetic: `add`, `sub` & `mul`
-  - IO: `show`, `read`
-  - other: `div10`
-- zero dependency: no other libraries were used
+- minimal, only has: `add`, `sub` & `mul`
+- zero dependency: no other libraries were used (except glibc)
 - provides dynamic, static and header-only versions of the library
 
 ## Implementation Details
@@ -18,9 +15,10 @@ This implementation is based off of: [multiformats/unsigned-varint](https://gith
 - <https://github.com/multiformats/unsigned-varint>
 - <https://en.wikipedia.org/wiki/Variable-length_quantity>
 
-This repository uses Nix for reproducibility. If you do not use Nix, you will have to manually install:
+---
 
-- gcc
+This repository uses Nix for reproducibility. If you do not use Nix, you will have to manually install a C compiler (this project uses `gcc`). For development, you will also need:
+
 - bear
 - gdb
 - universal-ctags
@@ -29,9 +27,13 @@ This repository uses Nix for reproducibility. If you do not use Nix, you will ha
 - clang-tools
 - valgrind
 
-Additionally, this Nix flake uses content-addressed derivations. You might have to enable these in your nix config:
+Additionally, this Nix flake uses content-addressed derivations. You might have to enable these in your nix config in order to build:
 
 - <https://nixos.wiki/wiki/Ca-derivations>
+
+You should still be able to open the development environment by removing the `__contentAddresssed = true;` line in [`./flake.nix`](flake.nix).
+
+---
 
 This project uses Kelvin versioning (as opposed to the very popular versioning system: semver). This means that once this project reaches 0K, no new releases will come out.
 
@@ -99,8 +101,49 @@ Options:
 
 The `./nob` binary will recompile itself automatically if `nob.c` changes.
 
+# Elsewhere
+
+This project is hosted on [tangled.org](https://tangled.org/) and [github.com](https://tangled.org/)
+
+- tangled: <https://tangled.org/stau.space/varint>
+- GitHub: <https://github.com/sona-tau/varint>
+
+This project also provides the following feeds:
+
+- tangled: <https://tangled.org/stau.space/varint>
+  - all: <https://tangled.org/stau.space/varint/feed.atom>
+  - issues: <https://tangled.org/stau.space/varint/feed.atom?include=issues>
+  - pull requests: <https://tangled.org/stau.space/varint/feed.atom?include=pulls>
+  - commits: <https://tangled.org/stau.space/varint/feed.atom?include=commits>
+  - tags: <https://tangled.org/stau.space/varint/feed.atom?include=tags>
+- GitHub: <https://github.com/sona-tau/varint>
+  - releases: <https://github.com/sona-tau/varint/releases.atom>
+  - commits: <https://github.com/sona-tau/varint/commits.atom>
+  - tags: <https://github.com/sona-tau/varint/tags.atom>
+
 # TODO
 
-- add tests for `add`, `sub`, `mul`, `div10`
 - add fuzz testing from libFuzzing
-- change semver code in nob.c to kelvin versioning
+- publish on radicle
+- nob should:
+``` txt
+./nob build {release, tiny, debug, static, dynamic} -m MACHINE
+
+./nob dev {docs, fmt, fmt-check, compile-commands}
+
+./nob pack
+
+./nob clean
+
+./nob test
+```
+- put docs in `/docs`
+  - then use github/tangled actions to create doc pages for this
+  - then put the links for the docs in here
+- add CA derivation to IPFS
+  - then add the CID to this README.md
+- make a header-only version
+- split `varint.h` into:
+  - `varint.h` -> `new`, `free`, `into`
+  - `varint-tools.h` -> `to_string`, `from_string`, `add`, `sub`, `mul`
+
