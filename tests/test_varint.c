@@ -44,6 +44,12 @@ void test_new() {
   ASSERT_EQ(a7[0], 0x80);
   ASSERT_EQ(a7[1], 0x80);
   ASSERT_EQ(a7[2], 0x01);
+
+  vint a8 = varint_new(12345);
+  ASSERT_NOT_NULL(a8);
+  ASSERT_EQ(varint_length(a8), 2);
+  ASSERT_EQ(a8[0], 0xB9);
+  ASSERT_EQ(a8[1], 0x60);
   printf("test_new: passed\n");
 }
 
