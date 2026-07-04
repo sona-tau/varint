@@ -109,16 +109,16 @@ This project is hosted on [tangled.org](https://tangled.org/) and [github.com](h
 
 This project also provides the following feeds:
 
-- tangled: <https://tangled.org/stau.space/varint>
-  - all: <https://tangled.org/stau.space/varint/feed.atom>
-  - issues: <https://tangled.org/stau.space/varint/feed.atom?include=issues>
-  - pull requests: <https://tangled.org/stau.space/varint/feed.atom?include=pulls>
-  - commits: <https://tangled.org/stau.space/varint/feed.atom?include=commits>
-  - tags: <https://tangled.org/stau.space/varint/feed.atom?include=tags>
-- GitHub: <https://github.com/sona-tau/varint>
-  - releases: <https://github.com/sona-tau/varint/releases.atom>
-  - commits: <https://github.com/sona-tau/varint/commits.atom>
-  - tags: <https://github.com/sona-tau/varint/tags.atom>
+- tangled:
+  - [all](https://tangled.org/stau.space/varint/feed.atom)
+  - [issues](https://tangled.org/stau.space/varint/feed.atom?include=issues)
+  - [pull requests](https://tangled.org/stau.space/varint/feed.atom?include=pulls)
+  - [commits](https://tangled.org/stau.space/varint/feed.atom?include=commits)
+  - [tags](https://tangled.org/stau.space/varint/feed.atom?include=tags)
+- GitHub:
+  - [releases](https://github.com/sona-tau/varint/releases.atom)
+  - [commits](https://github.com/sona-tau/varint/commits.atom)
+  - [tags](https://github.com/sona-tau/varint/tags.atom)
 
 # TODO
 
