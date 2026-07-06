@@ -144,4 +144,3 @@ This project also provides the following feeds:
 - split `varint.h` into:
   - `varint.h` -> `new`, `free`, `into`
   - `varint-tools.h` -> `to_string`, `from_string`, `add`, `sub`, `mul`
-

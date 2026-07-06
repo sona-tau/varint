@@ -40,6 +40,8 @@ extern "C" {
  *   - the next byte can be read
  */
 
+/* ---- CORE ---- */
+
 /*! An unsigned varint; a more restricted version of LEB128.
  */
 typedef uint8_t *varint;
@@ -50,6 +52,13 @@ typedef struct {
   varint q;  /*!< Quotient; caller must free! */
   uint8_t r; /*!< Remainder; in [0, 9]. */
 } divmod10;
+
+typedef enum {
+  Neither = 0, /*!< 00 */
+  Right = 1,   /*!< 01 */
+  Left = 2,    /*!< 10 */
+  Both = 3     /*!< 11 */
+} Deallocate;
 
 /*! Encode a `uint64_t` into a varint.
  * \param a the `uint64_t` to encode
@@ -108,14 +117,37 @@ inline static void varint_free(void *p) { free(*(void **)p); }
  */
 #define vint __attribute__((cleanup(varint_free))) varint
 
+/* ---- ARITHMETIC ---- */
+
+typedef struct {
+  varint l;
+  size_t lenl;
+  varint r;
+  size_t lenr;
+  Deallocate deallocate;
+} binop_args;
+
 /*! Add two varints.
+ * \note This is a variadic function of which you need to specify at least two
+ * arguments
  * \param l a well-formed varint
  * \param r a well-formed varint
  * \note Caller owns the returned varint.
  * \return the result of adding `l` and `r` (`l + r`)
+ * \code
+ * \endcode
  */
-varint varint_add(varint l, size_t lenl, varint r, size_t lenr);
-varint varint_addn(varint l, varint r);
+#define varint_add(...) var_varint_add((binop_args){__VA_ARGS__})
+
+varint _varint_add(varint l, size_t lenl, varint r, size_t lenr,
+                   Deallocate deallocate);
+
+static inline varint var_varint_add(binop_args args) {
+  args.lenl = args.lenl == 0 ? varint_length(args.l) : args.lenl;
+  args.lenr = args.lenr == 0 ? varint_length(args.r) : args.lenr;
+  args.deallocate = args.deallocate > Both ? 0 : args.deallocate;
+  return _varint_add(args.l, args.lenl, args.r, args.lenr, args.deallocate);
+}
 
 /*! Subtract two varints.
  * \param l a well-formed varint
@@ -124,8 +156,17 @@ varint varint_addn(varint l, varint r);
  * \note Caller owns the returned varint.
  * \return the result of subtracting `r` from `l` (`l - r`)
  */
-varint varint_sub(varint l, size_t lenl, varint r, size_t lenr);
-varint varint_subn(varint l, varint r);
+varint _varint_sub(varint l, size_t lenl, varint r, size_t lenr,
+                   Deallocate deallocate);
+
+static inline varint var_varint_sub(binop_args args) {
+  args.lenl = args.lenl == 0 ? varint_length(args.l) : args.lenl;
+  args.lenr = args.lenr == 0 ? varint_length(args.r) : args.lenr;
+  args.deallocate = args.deallocate > Both ? 0 : args.deallocate;
+  return _varint_sub(args.l, args.lenl, args.r, args.lenr, args.deallocate);
+}
+
+#define varint_sub(...) var_varint_sub((binop_args){__VA_ARGS__})
 
 /*! Multiply two varints.
  * \param l a well-formed varint
@@ -133,8 +174,17 @@ varint varint_subn(varint l, varint r);
  * \note Caller owns the returned varint.
  * \return the result of multiplying `l` and `r` (`l * r`)
  */
-varint varint_mul(varint l, size_t lenl, varint r, size_t lenr);
-varint varint_muln(varint l, varint r);
+varint _varint_mul(varint l, size_t lenl, varint r, size_t lenr,
+                   Deallocate deallocate);
+
+static inline varint var_varint_mul(binop_args args) {
+  args.lenl = args.lenl == 0 ? varint_length(args.l) : args.lenl;
+  args.lenr = args.lenr == 0 ? varint_length(args.r) : args.lenr;
+  args.deallocate = args.deallocate > Both ? 0 : args.deallocate;
+  return _varint_mul(args.l, args.lenl, args.r, args.lenr, args.deallocate);
+}
+
+#define varint_mul(...) var_varint_mul((binop_args){__VA_ARGS__})
 
 /*! Divide a varint by 10.
  * \param a a well-formed varint
@@ -159,12 +209,14 @@ int varint_cmp(varint a, varint b);
 /*! True if `a == b`. */
 #define varint_eq(a, b) (varint_cmp((a), (b)) == 0)
 
+/* ---- STRING ---- */
+
 /*! Writes a varint to a file descriptor.
  *  Writes to `fd` a C string representing `a` in base 10.
  *  \param fd the file descriptor to write to
  *  \param a a well-formed varint
  */
-void varint_write(FILE *f, varint a);
+char *varint_to_string(varint a);
 
 /*! Reads a varint from a file descriptor.
  * Reads from `fd` assuming `fd` is a C string (null-terminated) representing
@@ -172,7 +224,9 @@ void varint_write(FILE *f, varint a);
  * \param fd the file descriptor to read from
  * \return the varint that was read
  */
-varint varint_read(FILE *f);
+varint varint_from_string(const char *s);
+
+/* ---- DEBUG ---- */
 
 /*! Prints each byte in hexadecimal to stdin.
  */

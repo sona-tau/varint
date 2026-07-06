@@ -1,5 +1,6 @@
 #include "varint.h"
 #include <assert.h>
+#include <errno.h>
 #include <memory.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -13,7 +14,7 @@
 static inline void *_oom_check(void *p, const char *file, size_t line,
                                const char *func) {
   if (p == NULL) {
-    fprintf(stderr, "%s:%d: in %s: Could not allocate memory; KAB-OOM: %s\n",
+    fprintf(stderr, "%s:%zu: in %s: Could not allocate memory; KAB-OOM: %s\n",
             file, line, func, strerror(errno));
     exit(EXIT_FAILURE);
   }
@@ -65,11 +66,13 @@ size_t varint_into(varint *out, size_t nbytes, uint64_t a) {
   }
 }
 
-varint varint_add(varint a, size_t lena, varint b, size_t lenb) {
+varint _varint_add(varint a, size_t lena, varint b, size_t lenb,
+                   Deallocate deallocate) {
   assert(varint_length(a) == lena &&
          "`lenl` must be exactly equal to the length of `l`");
   assert(varint_length(b) == lenb &&
          "`lenr` must be exactly equal to the length of `r`");
+
   uint8_t carry = 0;
   size_t n = lena > lenb ? lena : lenb;
   size_t len = 0;
@@ -100,20 +103,35 @@ varint varint_add(varint a, size_t lena, varint b, size_t lenb) {
     ret[i] |= TOP_BIT;
   ret[len - 1] &= (uint8_t)BOT_MASK;
 
+  switch (deallocate) {
+  case Both:
+    free(a);
+    free(b);
+    break;
+  case Left:
+    free(a);
+    break;
+  case Right:
+    free(b);
+    break;
+  case Neither:
+    break;
+  default:
+    break;
+  }
+
   return ret;
 }
 
-varint varint_addn(varint a, varint b) {
-  return varint_add(a, varint_length(a), b, varint_length(b));
-}
-
-varint varint_sub(varint a, size_t na, varint b, size_t nb) {
+varint _varint_sub(varint a, size_t na, varint b, size_t nb,
+                   Deallocate deallocate) {
   assert(varint_length(a) == na &&
          "`lenl` must be exactly equal to the length of `l`");
   assert(varint_length(b) == nb &&
          "`lenr` must be exactly equal to the length of `r`");
   assert((varint_gt(a, b) || varint_eq(a, b)) &&
          "`l >= r` in order for subtraction to be defined");
+
   size_t n = na;
 
   varint r = oom_check(calloc(n, 1));
@@ -144,18 +162,28 @@ varint varint_sub(varint a, size_t na, varint b, size_t nb) {
 
   r[n - 1] &= 0x7F;
 
+  switch (deallocate) {
+  case Both:
+    free(a);
+    free(b);
+    break;
+  case Left:
+    free(a);
+    break;
+  case Right:
+    free(b);
+    break;
+  case Neither:
+    break;
+  default:
+    break;
+  }
+
   return r;
 }
 
-varint varint_subn(varint a, varint b) {
-  return varint_sub(a, varint_length(a), b, varint_length(b));
-}
-
-varint varint_muln(varint a, varint b) {
-  return varint_mul(a, varint_length(a), b, varint_length(b));
-}
-
-varint varint_mul(varint a, size_t na, varint b, size_t nb) {
+varint _varint_mul(varint a, size_t na, varint b, size_t nb,
+                   Deallocate deallocate) {
   assert(varint_length(a) == na &&
          "`lenl` must be exactly equal to the length of `l`");
   assert(varint_length(b) == nb &&
@@ -190,6 +218,23 @@ varint varint_mul(varint a, size_t na, varint b, size_t nb) {
     r[i] |= 0x80;
 
   r[n - 1] &= 0x7F;
+
+  switch (deallocate) {
+  case Both:
+    free(a);
+    free(b);
+    break;
+  case Left:
+    free(a);
+    break;
+  case Right:
+    free(b);
+    break;
+  case Neither:
+    break;
+  default:
+    break;
+  }
 
   return r;
 }
@@ -264,12 +309,9 @@ varint varint_from_string(const char *s) {
       uint8_t value = (uint8_t)c - '0';
       vvaln = varint_into(&vval, 1, (uint64_t)value);
 
-      vint mul10 = varint_mul(ret, retn, v10, v10n);
-      size_t mul10n = varint_length(mul10);
-
-      varint m10av = varint_add(mul10, mul10n, vval, vvaln);
-      free(ret);
-      ret = m10av;
+      ret = varint_add(.l = varint_mul(.l = ret, .lenl = retn, .r = v10,
+                                       .lenr = v10n, .deallocate = Left),
+                       .r = vval, .lenr = vvaln, .deallocate = Left);
       retn = varint_length(ret);
     } else {
       break;
