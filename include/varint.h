@@ -60,6 +60,14 @@ typedef enum {
   Both = 3     /*!< 11 */
 } Deallocate;
 
+typedef struct {
+  varint l;
+  varint r;
+  size_t lenl;
+  size_t lenr;
+  Deallocate deallocate;
+} binop_args;
+
 /*! Encode a `uint64_t` into a varint.
  * \param a the `uint64_t` to encode
  * \warning If not able to be allocated, the function exits with \a
@@ -118,14 +126,6 @@ inline static void varint_free(void *p) { free(*(void **)p); }
 #define vint __attribute__((cleanup(varint_free))) varint
 
 /* ---- ARITHMETIC ---- */
-
-typedef struct {
-  varint l;
-  size_t lenl;
-  varint r;
-  size_t lenr;
-  Deallocate deallocate;
-} binop_args;
 
 /*! Add two varints.
  * \note This is a variadic function of which you need to specify at least two

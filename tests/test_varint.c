@@ -66,16 +66,16 @@ void test_single_byte() {
   vint v64 = varint_new(64);
   vint v127 = varint_new(127);
 
-  vint r1 = varint_addn(v0, v0);
+  vint r1 = varint_add(.l = v0, .r = v0);
   ASSERT(varint_eq(r1, v0));
 
-  vint r2 = varint_addn(v1, v2);
+  vint r2 = varint_add(.l = v1, .r = v2);
   ASSERT(varint_eq(r2, v3));
 
-  vint r3 = varint_addn(v42, v10);
+  vint r3 = varint_add(.l = v42, .r = v10);
   ASSERT(varint_eq(r3, v52));
 
-  vint r4 = varint_addn(v63, v64);
+  vint r4 = varint_add(.l = v63, .r = v64);
   ASSERT(varint_eq(r4, v127));
   printf("test_single_byte: passed\n");
 }
@@ -90,13 +90,13 @@ void test_first_carry(void) {
   vint v128 = varint_new(128);
   vint v254 = varint_new(254);
 
-  vint r1 = varint_addn(v127, v1);
+  vint r1 = varint_add(.l = v127, .r = v1);
   ASSERT(varint_eq(r1, v128));
 
-  vint r2 = varint_addn(v127, v127);
+  vint r2 = varint_add(.l = v127, .r = v127);
   ASSERT(varint_eq(r2, v254));
 
-  vint r3 = varint_addn(v126, v2);
+  vint r3 = varint_add(.l = v126, .r = v2);
   ASSERT(varint_eq(r3, v128));
 
   printf("test_first_carry: passed\n");
@@ -116,16 +116,16 @@ void test_different_lengths(void) {
   vint v16384 = varint_new(16384);
   vint v16385 = varint_new(16385);
 
-  vint r1 = varint_addn(v128, v1);
+  vint r1 = varint_add(.l = v128, .r = v1);
   ASSERT(varint_eq(r1, v129));
 
-  vint r2 = varint_addn(v128, v127);
+  vint r2 = varint_add(.l = v128, .r = v127);
   ASSERT(varint_eq(r2, v255));
 
-  vint r3 = varint_addn(v300, v27);
+  vint r3 = varint_add(.l = v300, .r = v27);
   ASSERT(varint_eq(r3, v327));
 
-  vint r4 = varint_addn(v16384, v1);
+  vint r4 = varint_add(.l = v16384, .r = v1);
   ASSERT(varint_eq(r4, v16385));
 
   printf("test_different_lengths: passed\n");
@@ -141,13 +141,13 @@ void test_carry_propagation(void) {
   vint v16385 = varint_new(16385);
   vint v32768 = varint_new(32768);
 
-  vint r1 = varint_addn(v16383, v1);
+  vint r1 = varint_add(.l = v16383, .r = v1);
   ASSERT(varint_eq(r1, v16384));
 
-  vint r2 = varint_addn(v16383, v2);
+  vint r2 = varint_add(.l = v16383, .r = v2);
   ASSERT(varint_eq(r2, v16385));
 
-  vint r3 = varint_addn(v16384, v16384);
+  vint r3 = varint_add(.l = v16384, .r = v16384);
   ASSERT(varint_eq(r3, v32768));
 
   printf("test_carry_propagation: passed\n");
@@ -159,7 +159,7 @@ void test_max_uint64(void) {
   vint vmax = varint_new(UINT64_MAX);
   vint v0 = varint_new(0);
 
-  vint r = varint_addn(vmax, v0);
+  vint r = varint_add(.l = vmax, .r = v0);
   ASSERT(varint_eq(r, vmax));
 
   printf("test_max_uint64: passed\n");
@@ -171,7 +171,7 @@ void test_uint64_overflow(void) {
   vint vmax = varint_new(UINT64_MAX);
   vint v1 = varint_new(1);
 
-  varint r = varint_addn(vmax, v1);
+  varint r = varint_add(.l = vmax, .r = v1);
 
   ASSERT_EQ(varint_length(r), 10);
 

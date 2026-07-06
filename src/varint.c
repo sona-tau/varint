@@ -189,7 +189,7 @@ varint _varint_mul(varint a, size_t na, varint b, size_t nb,
   assert(varint_length(b) == nb &&
          "`lenr` must be exactly equal to the length of `r`");
   size_t n = na + nb;
-  uint32_t *tmp = oom_check(calloc(n, sizeof(uint16_t)));
+  uint32_t *tmp = oom_check(calloc(n, sizeof(uint32_t)));
 
   for (size_t i = 0; i < na; i++)
     for (size_t j = 0; j < nb; j++)
@@ -274,7 +274,6 @@ char *varint_to_string(varint a) {
     last_q = dm.q;
     str[len++] = (char)dm.r + '0';
     char new_char = (char)dm.r + '0';
-    printf("%c", new_char);
   } while (last_q[0] != 0);
   free(last_q);
 
@@ -348,6 +347,10 @@ divmod10 varint_div10(varint a) {
   varint q_trim = oom_check(malloc(q_len));
   memcpy(q_trim, q, q_len);
   free(q);
+
+  for (size_t i = 0; i < q_len; ++i)
+    q_trim[i] |= TOP_BIT;
+  q_trim[q_len - 1] &= (uint8_t)BOT_MASK;
 
   return (divmod10){.q = q_trim, .r = (uint8_t)rem};
 }
