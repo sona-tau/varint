@@ -1,5 +1,4 @@
 #include "varint.h"
-#include <alloca.h>
 #include <assert.h>
 #include <memory.h>
 #include <stdbool.h>
@@ -11,6 +10,18 @@
 #define BOT_MASK ~TOP_BIT
 #define TOP_MASK ~BOT_MASK
 
+static inline void *_oom_check(void *p, const char *file, size_t line,
+                               const char *func) {
+  if (p == NULL) {
+    fprintf(stderr, "%s:%d: in %s: Could not allocate memory; KAB-OOM: %s\n",
+            file, line, func, strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+  return p;
+}
+
+#define oom_check(p) _oom_check(p, __FILE__, __LINE__, __func__)
+
 varint varint_new(uint64_t a) {
   uint8_t tmp[10];
   size_t len = 0;
@@ -20,12 +31,8 @@ varint varint_new(uint64_t a) {
     a >>= 7;
   } while (a);
 
-  varint ret = calloc(1, len);
-  if (ret == NULL) {
-    fprintf(stderr, "%s:%d: error: Could not allocate %zu bytes for varint\n",
-            __FILE__, __LINE__, len);
-    exit(EXIT_FAILURE);
-  }
+  varint ret = oom_check(calloc(1, len));
+
   for (size_t i = 0; i < len; ++i)
     ret[i] = tmp[i] | TOP_BIT;
 
@@ -66,7 +73,8 @@ varint varint_add(varint a, size_t lena, varint b, size_t lenb) {
   uint8_t carry = 0;
   size_t n = lena > lenb ? lena : lenb;
   size_t len = 0;
-  varint ret = calloc(1, n + 1);
+  varint ret = oom_check(calloc(1, n + 1));
+
   for (size_t i = 0; i < n; ++i) {
     uint8_t acc = carry;
 
@@ -84,12 +92,7 @@ varint varint_add(varint a, size_t lena, varint b, size_t lenb) {
   if (carry) {
     ret[len++] = carry;
   } else {
-    varint tmp = realloc(ret, len);
-    if (tmp == NULL) {
-      fprintf(stderr, "%s:%d error: realloc returned a null pointer.\n",
-              __FILE__, __LINE__);
-      exit(EXIT_FAILURE);
-    }
+    varint tmp = oom_check(realloc(ret, len));
     ret = tmp;
   }
 
@@ -109,10 +112,11 @@ varint varint_sub(varint a, size_t na, varint b, size_t nb) {
          "`lenl` must be exactly equal to the length of `l`");
   assert(varint_length(b) == nb &&
          "`lenr` must be exactly equal to the length of `r`");
-  assert(varint_gt(a, b) && "`l >= r` in order for subtraction to be defined");
+  assert((varint_gt(a, b) || varint_eq(a, b)) &&
+         "`l >= r` in order for subtraction to be defined");
   size_t n = na;
 
-  varint r = calloc(n, 1);
+  varint r = oom_check(calloc(n, 1));
 
   int borrow = 0;
 
@@ -157,15 +161,15 @@ varint varint_mul(varint a, size_t na, varint b, size_t nb) {
   assert(varint_length(b) == nb &&
          "`lenr` must be exactly equal to the length of `r`");
   size_t n = na + nb;
-  uint16_t *tmp = calloc(n, sizeof(uint16_t));
+  uint32_t *tmp = oom_check(calloc(n, sizeof(uint16_t)));
 
   for (size_t i = 0; i < na; i++)
     for (size_t j = 0; j < nb; j++)
       tmp[i + j] +=
-          (uint16_t)((a[i] & (uint8_t)BOT_MASK) * (b[j] & (uint8_t)BOT_MASK));
+          (uint32_t)((a[i] & (uint8_t)BOT_MASK) * (b[j] & (uint8_t)BOT_MASK));
 
   for (size_t i = 0; i < n; i++) {
-    uint16_t carry = tmp[i] >> 7;
+    uint32_t carry = tmp[i] >> 7;
     tmp[i] &= 0x7F;
 
     if (i + 1 < n)
@@ -175,7 +179,7 @@ varint varint_mul(varint a, size_t na, varint b, size_t nb) {
   while (n > 1 && tmp[n - 1] == 0)
     n--;
 
-  varint r = calloc(n, 1);
+  varint r = oom_check(calloc(n, 1));
 
   for (size_t i = 0; i < n; i++)
     r[i] = tmp[i] & 0x7F;
@@ -203,31 +207,44 @@ void varint_print_debug(varint a) {
   }
 }
 
-void varint_write(FILE *fd, varint a) {
+char *varint_to_string(varint a) {
+  if (a[0] == 0) {
+    char *str = oom_check(malloc(2));
+    str[0] = '0';
+    str[1] = '\0';
+    return str;
+  }
+
   size_t n = varint_length(a);
-  varint q = calloc(1, n);
-  char *str = calloc(1, n);
-  memcpy(q, a, n);
+  varint last_q = oom_check(calloc(1, n));
+  memcpy(last_q, a, n);
+
+  char *str = oom_check(calloc(1, n * 3 + 1));
+  oom_check(str);
 
   size_t len = 0;
   do {
-    divmod10 dm = varint_div10(q);
-    free(q);
-    q = dm.q;
+    divmod10 dm = varint_div10(last_q);
+    free(last_q);
+    last_q = dm.q;
     str[len++] = (char)dm.r + '0';
-  } while (q[0] != 0);
+    char new_char = (char)dm.r + '0';
+    printf("%c", new_char);
+  } while (last_q[0] != 0);
+  free(last_q);
+
+  // reverse string
   for (size_t i = 0; i < len / 2; ++i) {
     char tmp = str[i];
     str[i] = str[len - i - 1];
-    str[len - i] = tmp;
+    str[len - i - 1] = tmp;
   }
+  str[len] = '\0';
 
-  free(q);
-  fprintf(fd, "%s", str);
-  free(str);
+  return str;
 }
 
-varint varint_read(FILE *fd) {
+varint varint_from_string(const char *s) {
   varint ret = varint_new(0);
   size_t retn = varint_length(ret);
 
@@ -239,7 +256,10 @@ varint varint_read(FILE *fd) {
   varint vval = vvalbuf;
   size_t vvaln = varint_into(&vval, 1, 0);
 
-  for (int c = 0; (c = fgetc(fd)) != EOF;) {
+  size_t sn = strlen(s);
+
+  for (size_t i = 0; i < sn; ++i) {
+    char c = s[i];
     if (c >= '0' && c <= '9') {
       uint8_t value = (uint8_t)c - '0';
       vvaln = varint_into(&vval, 1, (uint64_t)value);
@@ -269,7 +289,7 @@ size_t varint_length(varint a) {
 divmod10 varint_div10(varint a) {
   size_t n = varint_length(a);
 
-  varint q = calloc(n, 1);
+  varint q = oom_check(calloc(n, 1));
   uint16_t rem = 0;
 
   for (size_t i = n; i-- > 0;) {
@@ -283,7 +303,7 @@ divmod10 varint_div10(varint a) {
   while (q_len > 1 && q[q_len - 1] == 0)
     q_len--;
 
-  varint q_trim = malloc(q_len);
+  varint q_trim = oom_check(malloc(q_len));
   memcpy(q_trim, q, q_len);
   free(q);
 
