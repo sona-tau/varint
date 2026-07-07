@@ -101,7 +101,7 @@ You should still be able to open the development environment by removing the `__
 
 # Elsewhere
 
-This project is hosted on [tangled.org](https://tangled.org/) and [github.com](https://tangled.org/)
+This project is hosted on [tangled.org](https://tangled.org/), [github.com](https://tangled.org/) and [radicle](https://radicle.dev/):
 
 - tangled: <https://tangled.org/stau.space/varint>
 - GitHub: <https://github.com/sona-tau/varint>
