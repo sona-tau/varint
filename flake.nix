@@ -8,7 +8,7 @@
   outputs =
     inputs@{ self, nixpkgs }:
     let
-      version = "272K";
+      version = "5K";
       # The systems supported for this flake
       supportedSystems = [
         "x86_64-linux" # 64-bit Intel/AMD Linux

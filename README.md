@@ -125,7 +125,7 @@ This project also provides the following feeds:
 - add fuzz testing from libFuzzing
 - nob should:
 ``` txt
-./nob build {release, tiny, debug, static, dynamic} -m MACHINE
+./nob build {release, tiny, debug, static, dynamic}
 
 ./nob dev {docs, fmt, fmt-check, compile-commands}
 
@@ -141,6 +141,3 @@ This project also provides the following feeds:
 - add CA derivation to IPFS
   - then add the CID to this README.md
 - make a header-only version
-- split `varint.h` into:
-  - `varint.h` -> `new`, `free`, `into`
-  - `varint-tools.h` -> `to_string`, `from_string`, `add`, `sub`, `mul`

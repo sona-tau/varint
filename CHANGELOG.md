@@ -1,3 +1,57 @@
+# 5K
+
+First, the API is almost complete:
+
+- `varint_to_u64`: converts back to a `uint64_t` if possible
+- `varint_copy`: copies a varint
+- `varint_parse`: parses a byte buffer for a varint
+
+## Variadic arithmetic functions
+
+Arithmetic functions are now variadic macros that check for the following arguments:
+
+- `.l`: the left-hand side of the binary operator
+- `.r`: the right-hand side of the binary operator
+- `.lenl`: the length of the left-hand side of the binary operator
+- `.lenr`: the length of the right-hand side of the binary operator
+- `.deallocate`: An enum that determines if any of the arguments to this function call should be freed
+
+This lets you write lines like:
+
+```c
+return varint_sub(
+	varint_mul(
+		varint_new(6), varint_new(10), .deallocate = Both),
+	varint_new(10), .deallocate = Both);
+```
+
+Instead of:
+
+```c
+varint val_6 = varint_new(6);
+varint val_7 = varint_new(7);
+varint val_10 = varint_new(10);
+
+varint result_42 = varint_mul(val_6, val_7);
+free(val_6);
+free(val_7);
+
+varint result_32 = varint_sub(result_42, val_10);
+free(result_42);
+free(val_10);
+
+return result_32;
+```
+
+## Improved IO
+
+Instead of having to read and write to a `FILE*` now you can just convert back and forth from strings as big integers:
+
+```c
+char *varint_to_string(varint a);
+varint varint_from_string(const char *s, size_t *consumed);
+```
+
 # 272K
 
 Added `varint_into`: Encode a `uint64_t` into a varint, writing it to `out`. _If the amount of bytes that were allocated weren't enough to encode `a` the `size_t` returned is 0._
