@@ -31,7 +31,6 @@ void test_to_string() {
     vint v = varint_new(cases[i].value);
     char *s = varint_to_string(v);
     ASSERT_NOT_NULL(s);
-    printf("%zu: expected %zu got %sXXXXXXXXX\n", strlen(s), cases[i].value, s);
     ASSERT_STR_EQ(s, cases[i].expected);
     free(s);
   }
@@ -64,7 +63,8 @@ void test_from_string() {
   size_t n = sizeof(cases) / sizeof(cases[0]);
 
   for (size_t i = 0; i < n; i++) {
-    vint v = varint_from_string(cases[i].input);
+    size_t consumed = 0;
+    vint v = varint_from_string(cases[i].input, &consumed);
     ASSERT_NOT_NULL(v);
 
     vint expected = varint_new(cases[i].expected);
@@ -88,7 +88,8 @@ void test_string_roundtrip() {
     char *s = varint_to_string(original);
     ASSERT_NOT_NULL(s);
 
-    vint parsed = varint_from_string(s);
+    size_t consumed = 0;
+    vint parsed = varint_from_string(s, &consumed);
     ASSERT_NOT_NULL(parsed);
     ASSERT(varint_eq(original, parsed));
 
@@ -105,7 +106,8 @@ void test_from_string_invalid() {
   size_t n = sizeof(invalid) / sizeof(invalid[0]);
 
   for (size_t i = 0; i < n; i++) {
-    vint v = varint_from_string(invalid[i]);
+    size_t consumed = 0;
+    vint v = varint_from_string(invalid[i], &consumed);
     ASSERT_EQ(v[0], 0);
   }
 

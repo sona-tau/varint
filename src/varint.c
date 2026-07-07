@@ -23,6 +23,8 @@ static inline void *_oom_check(void *p, const char *file, size_t line,
 
 #define oom_check(p) _oom_check(p, __FILE__, __LINE__, __func__)
 
+/* ---- CORE ---- */
+
 varint varint_new(uint64_t a) {
   uint8_t tmp[10];
   size_t len = 0;
@@ -65,6 +67,68 @@ size_t varint_into(varint *out, size_t nbytes, uint64_t a) {
     return len;
   }
 }
+
+bool varint_to_u64(varint a, uint64_t *out) {
+  assert(out != NULL && "Expected out to be non-null");
+  uint64_t ret = 0;
+  uint64_t pow = 1;
+  size_t lena = varint_length(a);
+
+  for (size_t i = 0; i < lena; ++i) {
+    uint8_t curr = a[i] & (uint8_t)BOT_MASK;
+
+    if (curr != 0) {
+      if (curr > UINT64_MAX / pow)
+        return false;
+
+      uint64_t term = curr * pow;
+      if (UINT64_MAX - ret < term)
+        return false;
+
+      ret += term;
+    }
+
+    if (i + 1 < lena) {
+      if (pow > UINT64_MAX / 128)
+        return false;
+
+      pow *= 128;
+    }
+  }
+
+  *out = ret;
+  return true;
+}
+
+varint varint_copy(varint a) {
+  size_t lena = varint_length(a);
+  varint ret = oom_check(calloc(1, lena));
+  memcpy(ret, a, lena);
+  return ret;
+}
+
+varint varint_parse(const uint8_t *buf, size_t buf_len, size_t *consumed) {
+  assert(buf != NULL && "Expected non-null buffer");
+  assert(consumed != NULL && "Expected non-null out param");
+  size_t len = 0;
+  while (len < buf_len && (buf[len] & (uint8_t)TOP_MASK) != 0)
+    ++len;
+
+  if (len >= buf_len || (len > 0 && buf[len] == 0x00)) {
+    *consumed = 0;
+    return oom_check(calloc(1, 1));
+  }
+
+  // NOTE: This includes the terminating byte
+  ++len;
+
+  varint ret = oom_check(calloc(1, len));
+  memcpy(ret, buf, len);
+  *consumed = len;
+  return ret;
+}
+
+/* ---- ARITHMETIC ---- */
 
 varint _varint_add(varint a, size_t lena, varint b, size_t lenb,
                    Deallocate deallocate) {
@@ -273,7 +337,6 @@ char *varint_to_string(varint a) {
     free(last_q);
     last_q = dm.q;
     str[len++] = (char)dm.r + '0';
-    char new_char = (char)dm.r + '0';
   } while (last_q[0] != 0);
   free(last_q);
 
@@ -288,7 +351,8 @@ char *varint_to_string(varint a) {
   return str;
 }
 
-varint varint_from_string(const char *s) {
+varint varint_from_string(const char *s, size_t *consumed) {
+  assert(consumed != NULL && "consumed must not be null");
   varint ret = varint_new(0);
   size_t retn = varint_length(ret);
 
@@ -308,14 +372,14 @@ varint varint_from_string(const char *s) {
       uint8_t value = (uint8_t)c - '0';
       vvaln = varint_into(&vval, 1, (uint64_t)value);
 
-      ret = varint_add(.l = varint_mul(.l = ret, .lenl = retn, .r = v10,
-                                       .lenr = v10n, .deallocate = Left),
-                       .r = vval, .lenr = vvaln, .deallocate = Left);
+      ret = varint_add(varint_mul(ret, v10, retn, v10n, .deallocate = Left),
+                       vval, .lenr = vvaln, .deallocate = Left);
       retn = varint_length(ret);
     } else {
       break;
     }
   }
+  *consumed = retn;
 
   return ret;
 }

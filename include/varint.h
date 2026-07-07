@@ -46,28 +46,6 @@ extern "C" {
  */
 typedef uint8_t *varint;
 
-/*! Result of dividing a varint by 10.
- */
-typedef struct {
-  varint q;  /*!< Quotient; caller must free! */
-  uint8_t r; /*!< Remainder; in [0, 9]. */
-} divmod10;
-
-typedef enum {
-  Neither = 0, /*!< 00 */
-  Right = 1,   /*!< 01 */
-  Left = 2,    /*!< 10 */
-  Both = 3     /*!< 11 */
-} Deallocate;
-
-typedef struct {
-  varint l;
-  varint r;
-  size_t lenl;
-  size_t lenr;
-  Deallocate deallocate;
-} binop_args;
-
 /*! Encode a `uint64_t` into a varint.
  * \param a the `uint64_t` to encode
  * \warning If not able to be allocated, the function exits with \a
@@ -125,7 +103,60 @@ inline static void varint_free(void *p) { free(*(void **)p); }
  */
 #define vint __attribute__((cleanup(varint_free))) varint
 
+/*! Decode a varint into a `uint64_t`.
+ * \param a a well-formed varint
+ * \param[out] out set to the decoded value on success; left untouched on
+ * failure
+ * \return `true` if `a` fits in 64 bits, `false` if its magnitude overflows
+ * `uint64_t` (in which case `*out` is not written)
+ */
+bool varint_to_u64(varint a, uint64_t *out);
+
+/*! Copy a varint.
+ * \param a a well-formed varint
+ * \note Caller owns the returned varint
+ * \return a newly allocated copy of `a`
+ */
+varint varint_copy(varint a);
+
+/*! Parses a varint from the front of a raw byte buffer.
+ * Unlike `varint_from_string`, this reads varints, not ASCII digits.
+ * \param buf the buffer to read from
+ * \param buf_len the number of valid bytes available in `buf`
+ * \param[out] consumed set to the number of bytes the parsed varint
+ * occupied; set to `0` if no complete varint could be read
+ *
+ * \note This function never reads past `buf + buf_len`, even if the
+ * continuation bits would otherwise indicate more bytes follow.
+ *
+ * \return a newly allocated, well-formed varint on success, or `NULL` if
+ * `buf` does not contain a complete varint within `buf_len` bytes
+ */
+varint varint_parse(const uint8_t *buf, size_t buf_len, size_t *consumed);
+
 /* ---- ARITHMETIC ---- */
+
+/*! Result of dividing a varint by 10.
+ */
+typedef struct {
+  varint q;  /*!< Quotient; caller must free! */
+  uint8_t r; /*!< Remainder; in [0, 9]. */
+} divmod10;
+
+typedef enum {
+  Neither = 0, /*!< 00 */
+  Right = 1,   /*!< 01 */
+  Left = 2,    /*!< 10 */
+  Both = 3     /*!< 11 */
+} Deallocate;
+
+typedef struct {
+  varint l;
+  varint r;
+  size_t lenl;
+  size_t lenr;
+  Deallocate deallocate;
+} binop_args;
 
 /*! Add two varints.
  * \note This is a variadic function of which you need to specify at least two
@@ -145,7 +176,7 @@ varint _varint_add(varint l, size_t lenl, varint r, size_t lenr,
 static inline varint var_varint_add(binop_args args) {
   args.lenl = args.lenl == 0 ? varint_length(args.l) : args.lenl;
   args.lenr = args.lenr == 0 ? varint_length(args.r) : args.lenr;
-  args.deallocate = args.deallocate > Both ? 0 : args.deallocate;
+  args.deallocate = args.deallocate > Both ? Neither : args.deallocate;
   return _varint_add(args.l, args.lenl, args.r, args.lenr, args.deallocate);
 }
 
@@ -162,7 +193,7 @@ varint _varint_sub(varint l, size_t lenl, varint r, size_t lenr,
 static inline varint var_varint_sub(binop_args args) {
   args.lenl = args.lenl == 0 ? varint_length(args.l) : args.lenl;
   args.lenr = args.lenr == 0 ? varint_length(args.r) : args.lenr;
-  args.deallocate = args.deallocate > Both ? 0 : args.deallocate;
+  args.deallocate = args.deallocate > Both ? Neither : args.deallocate;
   return _varint_sub(args.l, args.lenl, args.r, args.lenr, args.deallocate);
 }
 
@@ -180,7 +211,7 @@ varint _varint_mul(varint l, size_t lenl, varint r, size_t lenr,
 static inline varint var_varint_mul(binop_args args) {
   args.lenl = args.lenl == 0 ? varint_length(args.l) : args.lenl;
   args.lenr = args.lenr == 0 ? varint_length(args.r) : args.lenr;
-  args.deallocate = args.deallocate > Both ? 0 : args.deallocate;
+  args.deallocate = args.deallocate > Both ? Neither : args.deallocate;
   return _varint_mul(args.l, args.lenl, args.r, args.lenr, args.deallocate);
 }
 
@@ -224,11 +255,11 @@ char *varint_to_string(varint a);
  * \param fd the file descriptor to read from
  * \return the varint that was read
  */
-varint varint_from_string(const char *s);
+varint varint_from_string(const char *s, size_t *consumed);
 
 /* ---- DEBUG ---- */
 
-/*! Prints each byte in hexadecimal to stdin.
+/*! Prints each byte in hexadecimal to stdout.
  */
 void varint_print_debug(varint a);
 
